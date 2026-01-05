@@ -86,7 +86,7 @@
       },
       {
         "channel_id": "820590823573815326",
-        "message": "## Only use this channel if you have creator points!\n> Use <@358598636436979713>'s `/profile` command if you have linked your account to the bot so we can give you the role.\n\n> If you haven't linked your GD account to your Discord account, please use `/account link` in https://discord.com/channels/717003826288394271/717004813845659671 and follow the steps.\n### If you react or send a randomm message here, you will be restricted from using this channel FOREVER",
+        "message": "## Only use this channel if you have creator points!\n> Use <@358598636436979713>'s `/profile` command if you have linked your account to the bot so we can give you the role.\n\n> If you haven't linked your GD account to your Discord account, please use `/account link` in https://discord.com/channels/717003826288394271/717004813845659671 and follow the steps.\n### If you react or send a random message here, you will be restricted from using this channel FOREVER",
         "delay_seconds": 1
       }
     ]
