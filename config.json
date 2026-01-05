@@ -73,7 +73,7 @@
   "responses": {
     "_comment": "Message response rules.",
     "rules_path": "responses.json",
-    "cooldown_seconds": 30,
+    "cooldown_seconds": 10,
     "first_match_only": true
   },
   "sticky": {
