@@ -69,6 +69,67 @@ class TrackingCog(commands.Cog):
         )
         return row is not None
 
+def _cfg_int_list(self, section: str, key: str) -> list[int]:
+    """Config int-list helper compatible with older Config implementations."""
+    cfg = self.bot.config
+    try:
+        vals = cfg.get_int_list(section, key)
+    except TypeError:
+        # some Config variants accept only (section, key)
+        vals = cfg.get_int_list(section, key)
+    except Exception:
+        vals = None
+    if not vals:
+        return []
+    out: list[int] = []
+    for v in vals:
+        try:
+            out.append(int(v))
+        except Exception:
+            continue
+    return out
+
+async def _log_weekly(self, guild: discord.Guild, week_start: str, user_id: int, event: str, detail: str = "") -> None:
+    """Best-effort weekly logging: DB (if table exists) + optional log channel."""
+    cfg = self.bot.config
+    # DB log (optional)
+    try:
+        await self.bot.db.execute(
+            "INSERT INTO weekly_dm_log(guild_id, week_start, user_id, event, detail, ts) VALUES(?,?,?,?,?,?)",
+            (guild.id, week_start, int(user_id), str(event), str(detail)[:500], int(time.time()))
+        )
+    except Exception:
+        pass
+
+    # channel log (optional)
+    try:
+        log_channel_id = 0
+        try:
+            log_channel_id = int(cfg.get("tracking", "log_channel_id", default=0) or 0)
+        except Exception:
+            # older Config may not support default kwarg
+            try:
+                log_channel_id = int(cfg.get("tracking", "log_channel_id") or 0)
+            except Exception:
+                log_channel_id = 0
+
+        if not log_channel_id:
+            # fall back to general logging if configured
+            try:
+                log_channel_id = int(cfg.get("channels", "general_logging_channel_id") or 0)
+            except Exception:
+                log_channel_id = 0
+
+        ch = guild.get_channel(log_channel_id) if log_channel_id else None
+        if isinstance(ch, discord.TextChannel):
+            emb = discord.Embed(title="Weekly request log", description=f"**{event}**\n{detail}".strip())
+            emb.add_field(name="Week", value=week_start, inline=True)
+            if user_id:
+                emb.add_field(name="User", value=f"<@{user_id}> ({user_id})", inline=True)
+            await ch.send(embed=emb)
+    except Exception:
+        pass
+
     # --- Activity counting ---
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -87,15 +148,15 @@ class TrackingCog(commands.Cog):
             return
 
         # count activity with exclusions + per-user cooldown
-        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id", default=[]))
+        excluded_role_ids = set(self._cfg_int_list("roles", "excluded_tracking_role_id"))
         if excluded_role_ids:
             m = message.guild.get_member(message.author.id)
             if m and any(r.id in excluded_role_ids for r in m.roles):
                 return
 
         excluded_channels = set(
-            cfg.get_int_list('channels', 'excluded_tracking_channel_ids', default=[])
-            + cfg.get_int_list('channels', 'bot_commands_channel_ids', default=[])
+            self._cfg_int_list('channels', 'excluded_tracking_channel_ids')
+            + self._cfg_int_list('channels', 'bot_commands_channel_ids')
         )
         if message.channel.id in excluded_channels:
             return
@@ -381,7 +442,7 @@ class TrackingCog(commands.Cog):
         winners_to_dm = int(cfg.get("tracking", "winners_to_dm", default=1) or 1)
         timeout_h = int(cfg.get("tracking", "dm_timeout_hours", default=48) or 48)
 
-        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id", default=[]))
+        excluded_role_ids = set(self._cfg_int_list("roles", "excluded_tracking_role_id"))
         await self._log_weekly(guild, week_start_iso, 0, "weekly_job_start", f"top_limit={top_limit} winners_to_dm={winners_to_dm} timeout_h={timeout_h}")
 
         # top users
@@ -526,7 +587,7 @@ class TrackingCog(commands.Cog):
         cfg = self.bot.config
         top_limit = int(cfg.get("tracking", "top_limit", default=20) or 20)
         timeout_h = int(cfg.get("tracking", "dm_timeout_hours", default=48) or 48)
-        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id", default=[]))
+        excluded_role_ids = set(self._cfg_int_list("roles", "excluded_tracking_role_id"))
         await self._log_weekly(guild, week_start_iso, 0, "weekly_job_start", f"top_limit={top_limit} winners_to_dm={winners_to_dm} timeout_h={timeout_h}")
 
         rows = await self.bot.db.fetchall(
@@ -586,7 +647,7 @@ class TrackingCog(commands.Cog):
     async def get_member_stats(self, guild: discord.Guild, week_start_iso: str, user_id: int) -> tuple[int, Optional[int], int]:
         """Return (count, rank among eligible, eligible_total). Rank is 1-based, or None if not ranked/eligible."""
         cfg = self.bot.config
-        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id", default=[]))
+        excluded_role_ids = set(self._cfg_int_list("roles", "excluded_tracking_role_id"))
 
         # fast count lookup
         row = await self.bot.db.fetchone(
@@ -625,7 +686,7 @@ class TrackingCog(commands.Cog):
     async def force_dm_for_user(self, guild: discord.Guild, week_start_iso: str, user_id: int, timeout_hours: Optional[int] = None) -> tuple[bool, str]:
         """Force-send the weekly request DM to a user (admin tool). Returns (ok, message)."""
         cfg = self.bot.config
-        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id", default=[]))
+        excluded_role_ids = set(self._cfg_int_list("roles", "excluded_tracking_role_id"))
         timeout_h = int(timeout_hours or cfg.get("tracking", "dm_timeout_hours", default=48) or 48)
 
         member = guild.get_member(user_id)
