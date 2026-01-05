@@ -108,7 +108,7 @@ class CommandsCog(commands.Cog):
         except Exception:
             pass
 
-        embed.set_footer(text="Counts exclude bots, commands, and configured channels/roles.")
+        embed.set_footer(text="This is the most active members, do you see yourself here?")
         await ctx.respond(embed=embed)
 
 
@@ -124,7 +124,7 @@ class CommandsCog(commands.Cog):
         count, rank, eligible_total = await tracking.get_member_stats(ctx.guild, ws, ctx.user.id)
 
         if rank is None:
-            return await ctx.respond("You are not eligible for weekly tracking (or have no tracked messages yet).", ephemeral=True)
+            return await ctx.respond("You are not eligible for weekly tracking (or have no tracked messages yet)", ephemeral=True)
 
         week_label = week_start_sunday(now_madrid()).strftime("%Y-%m-%d")
         embed = discord.Embed(title="Your Weekly Activity")
