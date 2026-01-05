@@ -1,0 +1,131 @@
+[
+  {
+    "_comment": "Example rule: if message equals 'example', reply with an embed in specific channels",
+    "Content": "example",
+    "Whole_message": true,
+    "Respond": true,
+    "Embed": true,
+    "Embed_text": {
+      "color": "blue",
+      "title": "Example",
+      "description": "Example"
+    },
+    "Message": false,
+    "Message_text": "",
+    "Channels": ["", ""]
+  },
+  {
+    "_comment": "Cat :3",
+    "Content": "cat therapy",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "You should read [this](http://www.milwaukeeindependent.com/syndicated/emotional-relief-studies-show-cats-kinds-pet-therapy-helps-improve-wellbeing-patients/) :3",
+    "Channels": []
+  },
+  {
+    "_comment": "Just ask command",
+    "Content": "justask",
+    "Whole_message": true,
+    "Respond": false,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://dontasktoask.com/",
+    "Channels": []
+  },
+  {
+    "_comment": ":3",
+    "Content": ":3",
+    "Whole_message": false,
+    "Respond": false,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": ":3",
+    "Channels": []
+  },
+  {
+    "_comment": "Hi response",
+    "Content": "Hi!",
+    "Whole_message": true,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "Hey :D",
+    "Channels": []
+  },
+  {
+    "_comment": "Fun Fact",
+    "Content": "fun fact",
+    "Whole_message": false,
+    "Respond": false,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "Did you know that water is actually [not wet](https://www.sciencefocus.com/science/is-water-wet)?",
+    "Channels": []
+  },
+  {
+    "_comment": "67",
+    "Content": "67",
+    "Whole_message": true,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "This is not funny",
+    "Channels": []
+  },
+  {
+    "_comment": "Good bye!",
+    "Content": "gtg",
+    "Whole_message": false,
+    "Respond": false,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "cya!",
+    "Channels": []
+  },
+  {
+    "_comment": "Every end gif",
+    "Content": "Every End",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://tenor.com/view/every-end-geometry-dash-gif-8964709680687702268",
+    "Channels": []
+  },
+  {
+    "_comment": "Congregation gif",
+    "Content": "congregation",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://tenor.com/view/congregation-jumpscare-presta-gd-geometry-dash-gif-16705328275926670390",
+    "Channels": []
+  },
+  {
+    "_comment": "Why your level is hard to fix later",
+    "Content": "planning guide",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": true,
+    "Embed_text": {
+      "color": "#1ABC9C",
+      "title": "Planning",
+      "description": "Check out what planning really is and its benefits with [this guide](https://discord.com/channels/717003826288394271/1455590951052644444)"
+    },
+    "Message": false,
+    "Message_text": "",
+    "Channels": []
+  }
+]

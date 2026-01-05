@@ -1,0 +1,238 @@
+{
+  "_comment_0": "IDs are strings here. The loader converts them to ints. Keys starting with '_' are ignored.",
+  "guild": {
+    "_comment": "The only guild this bot will operate in.",
+    "allowed_guild_id": "717003826288394271"
+  },
+  "roles": {
+    "_comment_mod": "Roles for moderation/tickets and admin gating.",
+    "MOD_ROLE_ID": "1455040299733880914",
+    "admin_owner_role_ids": [
+      "901431567719731230",
+      "1106906460362911835",
+      "718164717100728380"
+    ],
+    "_comment_autodelete": "Whitelist roles allowed to message/react in autodelete channel without restriction.",
+    "whitelisted_deletion_ID_roles": [
+      "1455040299733880914",
+      "1106906460362911835",
+      "901431567719731230",
+      "717325111367041034"
+    ],
+    "restriction_role_ID": "1436721868244779089",
+    "_comment_tracking": "Members with this role are excluded from activity tracking and weekly ranking.",
+    "excluded_tracking_role_id": [
+      "1455040299733880914",
+      "901431567719731230",
+      "1106906460362911835"
+    ],
+    "_comment_autoDM": "When a member gains watched role, they receive a DM.",
+    "autoDM_watched_role_id": "1448668022070968441",
+    "_comment_gambling": "Role granted by rare gambling wins.",
+    "gambling_reward_role_id": "1455041373337288846",
+    "_comment_rps": "Role awarded when a user wins 5 rock-paper-scissors games in a row.",
+    "rps_streak_role_id": "1455041515398369375"
+  },
+  "channels": {
+    "_comment_core": "Core channels used by features.",
+    "autodelete_channel_id": "820590823573815326",
+    "weekly_request_channel_ID": "1120741230570127371",
+    "dm_fail_log_channel_id": "1455041917925589002",
+    "global_error_log_channel_id": "1455041991531430136",
+    "general_logging_channel_id": "1445502925081284729",
+    "_comment_exclusions": "Excluded from tracking.",
+    "excluded_tracking_channel_ids": [
+      "866943571138969630",
+      "820590823573815326"
+    ],
+    "bot_commands_channel_ids": [
+      "717004813845659671"
+    ],
+    "_comment_help": "Channels for help submissions/requests.",
+    "appeals_log_channel_id": "1455042313855307939",
+    "reports_log_channel_id": "1455042313855307939",
+    "bot_issues_log_channel_id": "1455042313855307939",
+    "transcript_requests_channel_id": "1455042456432152646"
+  },
+  "tracking": {
+    "_comment": "Weekly activity tracking.",
+    "top_limit": 20,
+    "winners_to_dm": 1,
+    "count_cooldown_seconds": 10,
+    "dm_timeout_hours": 24,
+    "reminder_after_hours": 12,
+    "reminder_repeat_hours": 0,
+    "log_channel_id": 0
+  },
+  "tickets": {
+    "_comment": "Ticket settings.",
+    "ticket_category_id": "1239942138838650981",
+    "ticket_creation_cooldown_hours": 24,
+    "ticket_inactivity_hours": 24
+  },
+  "responses": {
+    "_comment": "Message response rules.",
+    "rules_path": "responses.json",
+    "cooldown_seconds": 30,
+    "first_match_only": true
+  },
+  "sticky": {
+    "_comment": "Sticky messages per channel.",
+    "entries": [
+      {
+        "channel_id": "731145959043498116",
+        "message": "## Wanna partner?\n-DM an Owner/Admin if you meet these standards\n - Be a positive, active, and SFW community\n - Have a partnership or any other ping format to partner\n - Have more than 100 members (if not you won't get pinged here)\n - Be nice and friendly when asking :)",
+        "delay_seconds": 2
+      }
+    ]
+  },
+"forum_first_message": {
+  "_comment_entries": "Optional: multiple forum channels. If present, 'entries' overrides single forum_channel_id/templates.",
+  "entries": [
+    {
+      "forum_channel_id": "1104487618026143754",
+      "templates": {
+        "default": {
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach!",
+          "color": "blurple"
+        },
+        "1104488340251746504": {
+          "_comment": "Template for forum tag ID 1104488340251746504",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for glow creators!",
+          "color": "#2C3E50"
+        },
+        "1104488464801603756": {
+          "_comment": "Template for forum tag ID 1104488464801603756",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for effect creators!",
+          "color": "#34495E"
+        },
+        "1104488279526625501": {
+          "_comment": "Template for forum tag ID 1104488279526625501",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for modern creators!",
+          "color": "#E91E63"
+        },
+        "1105168718545289240": {
+          "_comment": "Template for forum tag ID 1105168718545289240",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for art creators!",
+          "color": "#A84300"
+        },
+        "1104488566307946637": {
+          "_comment": "Template for forum tag ID 1104488566307946637",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for other styles of decoration creators!",
+          "color": "#1F8B4C"
+        },
+        "1104488837356462112": {
+          "_comment": "Template for forum tag ID 1104488837356462112",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for gameplay creators!",
+          "color": "#C27C0E"
+        },
+        "1104489124729196654": {
+          "_comment": "Template for forum tag ID 1104489124729196654",
+          "title": "Make sure your collab follows our format!",
+          "description": "Your collab must have a name, theme, song, appeal, and purpose! This is **just a reminder**, so make sure to double check it for your collab to have more reach for verifiers!",
+          "color": "#992D22"
+        }
+       }
+      },
+      {
+      "forum_channel_id": "1100841910026895360",
+      "templates": {
+        "default": {
+          "title": "Make sure you ask for feedback correctly!",
+          "description": "Your post must follow our server rules. To get better feedback quickly, read over [how to use this channel](https://discord.com/channels/717003826288394271/1457746418574950441)",
+          "color": "#BCC0C0"
+        }
+       }
+      }
+    ]
+  },
+  "autoDM": {
+  "_comment_entries": "Optional: multiple DM-on-role rules.",
+  "entries": [
+    { "role_id": "1159183038018768916", "message": "Hi {user}, you got {role} in {guild}! Please contact staff through my DMs if this was a mistake. If you were muted as a punishment for an infraction, please ignore this."},
+    { "role_id": "1448668022070968441", "message": "Hi {user}, you have been marked as {role}, please contact staff through my DMs to verify you are not a bot."}
+  ]
+},
+  "fun": {
+    "_comment_dance": "GIF for /dance",
+    "dance_gif_url": "https://tenor.com/view/sayaw-dancing-danc-dance-gif-16011329613171544950",
+    "gambling": {
+      "_comment": "Slots config for /gambling",
+      "emojis": [
+        "\ud83c\udf52",
+        "\ud83c\udf4b",
+        "\ud83c\udf47",
+        "\u2b50",
+        "\ud83d\udc8e"
+      ],
+      "spin_interval_seconds": 0.25,
+      "spin_total_seconds": 2.25,
+      "rare_win_chance": 0.05,
+      "_comment_win_combo": "If rare win triggers, final combo becomes this value.",
+      "win_combo": "\ud83d\udc8e\ud83d\udc8e\ud83d\udc8e",
+      "_comment_display": "During spinning, the slot emoji is not shown. Final result is wrapped like: \ud83c\udfb0 \ud83c\udf52\ud83c\udf4b\ud83c\udf47 \ud83c\udfb0"
+    }
+  },
+  "help": {
+    "_comment": "Help system settings for FAQs, appeals, reports, bot issues, weekly status, and transcript requests.",
+    "faq": {
+      "_comment": "FAQ entries shown in DMs when user selects FAQ.",
+      "title": "FAQ",
+      "entries": [
+        "How do I request my level?\n> Try to use https://discord.com/channels/717003826288394271/1120726649953062982/1286422838496067594, if it's closed it will let you know.",
+        "How do I partner with GD Avenue?\n> DM an Owner/Admin if you follows our requirements found in https://discord.com/channels/717003826288394271/731145959043498116",
+        "How do weekly requests work?\n> Be active during the week and the most active members get DMed on Sunday to claim their request",
+        "How do I contact mods?\n> Use 'Mod contact' to open a private ticket in my selection menu, though only use this if needed",
+        "My level got send/rejected in level requests, what do I do now?\n> If your level got rejected, try to take into account the feedback we give you. If it got accepted, we might contact you with more info, but know that your level is on its way to mods!",
+        "Where do I post/search for collabs?\n> Use https://discord.com/channels/717003826288394271/1104487618026143754 and follow our guidelines!"
+      ]
+    },
+    "report_warning_enabled": true,
+    "_comment_cooldowns": "Help action cooldowns are enforced in code: appeal=48h, report_user=24h, bot_issue=6h, transcript=8h."
+  },
+  "background": {
+    "_comment": "Background telemetry and scheduled tasks. Safe to disable completely.",
+    "exclude_channel_ids": [],
+    "daily_summary": {
+      "_comment": "Optional daily summary embed (Madrid time). If channel_id is empty, falls back to general_logging_channel_id.",
+      "enabled": true,
+      "time": "00:00",
+      "channel_id": "1445502925081284729",
+      "reset_after_report": true
+    },
+    "status_rotation": {
+      "_comment": "Optional rotating presence. Each entry is an object: {type,text}. Types: playing, watching, listening, competing.",
+      "enabled": true,
+      "interval_seconds": 600,
+      "statuses": [
+        {
+          "type": "watching",
+          "text": "{members} members"
+        },
+        {
+          "type": "watching",
+          "text": "{online} online"
+        },
+        {
+          "type": "listening",
+          "text": "{week_msgs} msgs this week"
+        },
+        {
+          "type": "playing",
+          "text": "Current most active member is {week_top}"
+        },
+        {
+          "type": "competing",
+          "text": "{open_tickets} open tickets :)"
+        }
+      ]
+    }
+  }
+}
