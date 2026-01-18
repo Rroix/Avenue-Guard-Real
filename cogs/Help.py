@@ -16,6 +16,8 @@ from utils.transcript import build_text_transcript
 from utils.timeutils import now_madrid, week_start_sunday
 
 
+pinged_role_for_tickets = "<@&1462403598028640296>"
+
 def _format_duration(seconds: int) -> str:
     seconds = max(0, int(seconds))
     if seconds < 60:
@@ -124,7 +126,7 @@ class HelpCog(commands.Cog):
 
             embed = discord.Embed(
                 title="Help Menu",
-                description="Hello! What do you need help with?\nSelect an option below.",
+                description="Hello! What do you need help with?\nSelect an option below",
             )
             try:
                 await message.channel.send(embed=embed, view=HelpMenuView())
@@ -191,7 +193,7 @@ class HelpCog(commands.Cog):
             await self._start_help_session(interaction.user.id, guild.id, "appeal_punishment", {})
             embed = discord.Embed(
                 title="Appeal punishment",
-                description="What was your punishment? (kick/ban/restriction + details)\n\nType **cancel** to stop.",
+                description="Please fill [this form](https://forms.gle/1fgqKtyo6okiQzjBA) out\n\nType **cancel** to stop.",
             )
             return await interaction.response.send_message(embed=embed)
 
@@ -227,7 +229,7 @@ class HelpCog(commands.Cog):
             await self._start_help_session(interaction.user.id, guild.id, "bot_issue_details", {})
             embed = discord.Embed(
                 title="Report a bot issue",
-                description="Please describe the bot issue/bug, and include screenshots or steps to reproduce/explanation.\n\nType **cancel** to stop.",
+                description="Please describe the bot issue/bug, and include screenshots or steps to reproduce/explanation in a single message.\n\nType **cancel** to stop.",
             )
             return await interaction.response.send_message(embed=embed)
 
@@ -250,7 +252,7 @@ class HelpCog(commands.Cog):
 
         if value == "mod_contact":
             return await interaction.response.send_message(
-                "Do you want to contact mods? Please only use this if you **need mods**.",
+                "Do you want to contact staff? Please only use this if you **need staff**.",
                 view=HelpModConfirmView(),
             )
 
@@ -263,7 +265,7 @@ class HelpCog(commands.Cog):
         entries = faq.get("entries", [])
         if not isinstance(entries, list):
             entries = []
-        desc = "\n".join([f"• {str(x)}" for x in entries][:20]) or "No FAQ entries configured."
+        desc = "\n".join([f"• {str(x)}" for x in entries][:20]) or "Not available right now, sorry"
         embed = discord.Embed(title=title, description=desc)
         await interaction.response.send_message(embed=embed)
 
@@ -272,7 +274,7 @@ class HelpCog(commands.Cog):
         excluded_role_id = cfg.get_int("roles", "excluded_tracking_role_id")
         member = guild.get_member(interaction.user.id)
         if member is None:
-            return await interaction.response.send_message("You must be in the server.")
+            return await interaction.response.send_message("You must be in the server...")
 
         if excluded_role_id and any(r.id == excluded_role_id for r in member.roles):
             return await interaction.response.send_message("You are excluded from weekly tracking.")
@@ -349,21 +351,21 @@ class HelpCog(commands.Cog):
             data["reason"] = content
             await self._submit_appeal(guild, message.author.id, data)
             await self._clear_help_session(message.author.id, guild.id)
-            await message.channel.send("Thanks! Your appeal has been sent to our staff team")
+            await message.channel.send("Thanks! We will look into your appeal soon")
             return True
 
         if stage == "report_details":
             data["report"] = content
             await self._submit_report(guild, message.author.id, data)
             await self._clear_help_session(message.author.id, guild.id)
-            await message.channel.send("Thanks! Your user report has been sent to our staff team")
+            await message.channel.send("Thanks! Your report has been sent to our staff team")
             return True
 
         if stage == "bot_issue_details":
             data["issue"] = content
             await self._submit_bot_issue(guild, message.author.id, data)
             await self._clear_help_session(message.author.id, guild.id)
-            await message.channel.send("Thanks! Your bot bug has been sent")
+            await message.channel.send("Thanks! Your bug report has been sent to our developer team")
             return True
 
         if stage == "transcript_ticket":
@@ -695,7 +697,7 @@ class HelpCog(commands.Cog):
             pass
 
         try:
-            await channel.send(f"Please say what you need {member.mention}, {mod_role.mention if mod_role else 'staff'} will be shortly with you ;)")
+            await channel.send(f"Please say what you need {member.mention}, {pinged_role_for_tickets if pinged_role_for_tickets else 'staff'} will be shortly with you ;)")
         except Exception:
             pass
 
