@@ -14,6 +14,7 @@ class StickyCog(commands.Cog):
         self._debounce_tasks: Dict[int, asyncio.Task] = {}
         self._sticky_entries: List[Dict[str, Any]] = []
         self._forum_rules: Dict[int, Dict[str, Dict[str, Any]]] = {}  # forum_channel_id -> templates
+        self._forum_sent_threads: set[int] = set()  # thread IDs already handled
         self.reload_from_config()
 
     def reload_from_config(self) -> None:
@@ -108,37 +109,36 @@ class StickyCog(commands.Cog):
         except Exception:
             pass
 
-    @commands.Cog.listener()
-    async def on_thread_create(self, thread: discord.Thread):
-        cfg = self.bot.config
-        allowed_guild_id = cfg.get_int("guild", "allowed_guild_id")
-        if thread.guild is None or thread.guild.id != allowed_guild_id:
-            return
+async def _send_forum_first_message_retry(self, thread: discord.Thread, templates: Dict[str, Dict[str, Any]]) -> None:
+    """Send the first-message embed with retries.
+    Forum threads created with media attachments can sometimes reject early sends; retries fix that.
+    """
+    if thread.guild is None:
+        return
+    if thread.id in self._forum_sent_threads:
+        return
 
-        templates = self._forum_rules.get(thread.parent_id)
-        if not templates:
-            return
+    # choose template by first matching applied tag (keeps existing self._forum_templates behavior)
+    template = templates.get("default", {}) or {}
+    try:
+        applied = getattr(thread, "applied_tags", []) or []
+        for tag in applied:
+            t = self._forum_templates.get(str(tag.id))
+            if isinstance(t, dict):
+                template = t
+                break
+    except Exception:
+        pass
 
-        # choose template by first matching applied tag
-        template = templates.get("default", {}) or {}
-        try:
-            applied = getattr(thread, "applied_tags", []) or []
-            for tag in applied:
-                t = self._forum_templates.get(str(tag.id))
-                if isinstance(t, dict):
-                    template = t
-                    break
-        except Exception:
-            pass
+    title = str(template.get("title", "") or "")
+    desc = str(template.get("description", "") or "")
+    color = basic_color(str(template.get("color", "") or "blurple"))
+    embed = discord.Embed(title=title or None, description=desc or None, color=color)
 
-        title = str(template.get("title", "") or "")
-        desc = str(template.get("description", "") or "")
-        color = basic_color(str(template.get("color", "") or "blurple"))
-        embed = discord.Embed(title=title or None, description=desc or None, color=color)
-        try:
-            await thread.send(embed=embed)
-        except Exception:
-            pass
+    # Delay a bit first (media attachments often cause timing races)
+    try:
+        await asyncio.sleep(1.0)
+    except Exception:
+        pass
 
-def setup(bot: discord.Bot):
-    bot.add_cog(StickyCog(bot))
+    for attempt in range(5):
