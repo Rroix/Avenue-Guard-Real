@@ -89,7 +89,7 @@ class _HelpMenuSelect(discord.ui.Select):
             discord.SelectOption(
                 label="Report a user",
                 value="report",
-                description="Report in-server harassment, scams, NSFW...",
+                description="Report harassment, scams, NSFW...",
             ),
             discord.SelectOption(
                 label="Report a bot issue",
