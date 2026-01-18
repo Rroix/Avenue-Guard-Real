@@ -127,5 +127,27 @@
     "Message": false,
     "Message_text": "",
     "Channels": []
+  },
+  {
+    "_comment": "Tida Wave gif",
+    "Content": "tidal wave",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://tenor.com/view/tidal-wave-geometry-dash-extreme-gif-13003765587223276271",
+    "Channels": []
+  },
+  {
+    "_comment": "Bloodbath gif",
+    "Content": "bloodbath",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://tenor.com/view/bloodbath-geometry-dash-riot-extreme-demon-gd-gif-12537401629893333217",
+    "Channels": []
   }
 ]
