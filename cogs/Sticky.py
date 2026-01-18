@@ -18,12 +18,15 @@ class StickyCog(commands.Cog):
         # forum_channel_id -> templates dict (keys: "default" and tag_id strings)
         self._forum_rules: Dict[int, Dict[str, Dict[str, Any]]] = {}
 
-        # NOTE: You said this is intentional, so we keep using this mapping for tag lookups.
-        # At send-time we assign it to the templates for the relevant forum.
+        # Intentionally used for tag lookup (you asked to keep this pattern).
+        # In multi-forum mode we set this per-thread before selecting templates.
         self._forum_templates: Dict[str, Dict[str, Any]] = {}
 
-        # in-memory guard to avoid double-sending per thread runtime
+        # Thread IDs we've already handled this runtime
         self._forum_sent_threads: set[int] = set()
+
+        # Per-thread locks so only one send attempt runs at a time for a thread.
+        self._forum_thread_locks: Dict[int, asyncio.Lock] = {}
 
         self.reload_from_config()
 
@@ -56,7 +59,6 @@ class StickyCog(commands.Cog):
         if len(self._forum_rules) == 1:
             self._forum_templates = next(iter(self._forum_rules.values()))
         else:
-            # Multi-forum: _forum_templates is set per-thread when sending.
             self._forum_templates = {}
 
     def on_config_reload(self) -> None:
@@ -85,11 +87,13 @@ class StickyCog(commands.Cog):
             return
 
         # Forum-first-message fallback:
-        # If on_thread_create raced (common with media attachments) or failed, try again when we see messages in the thread.
+        # Normal path (on_thread_create) should run first. This fallback:
+        # - checks if the bot already posted in the thread (manual check)
+        # - if yes, does nothing
+        # - if no, sends
         try:
             if isinstance(message.channel, discord.Thread) and message.channel.parent_id in self._forum_rules:
-                if message.channel.id not in self._forum_sent_threads:
-                    asyncio.create_task(self._send_forum_first_message_retry(message.channel))
+                asyncio.create_task(self._forum_first_message_flow(message.channel, prefer_normal=False))
         except Exception:
             pass
 
@@ -144,21 +148,37 @@ class StickyCog(commands.Cog):
     # ---------------------------
     # Forum first-message feature
     # ---------------------------
-    async def _send_forum_first_message_retry(self, thread: discord.Thread) -> None:
-        """Send the configured first-message embed to a forum thread with delay+retries.
+    def _get_thread_lock(self, thread_id: int) -> asyncio.Lock:
+        lock = self._forum_thread_locks.get(thread_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            self._forum_thread_locks[thread_id] = lock
+        return lock
 
-        Forum posts with media attachments can race thread readiness; this prevents silent failures.
-        """
+    async def _thread_has_bot_message(self, thread: discord.Thread, limit: int = 25) -> bool:
+        """Manual check: if the bot has already posted in this thread, we shouldn't send again."""
+        me = self.bot.user
+        if me is None:
+            return False
+        try:
+            async for msg in thread.history(limit=limit, oldest_first=True):
+                if msg.author and msg.author.id == me.id:
+                    return True
+        except Exception:
+            # If we can't read history, play safe and avoid double posting.
+            return True
+        return False
+
+    async def _send_forum_first_message(self, thread: discord.Thread) -> bool:
+        """Send the configured first-message embed once. Returns True if sent."""
         if thread.guild is None:
-            return
-        if thread.id in self._forum_sent_threads:
-            return
+            return False
 
         templates = self._forum_rules.get(thread.parent_id)
         if not templates:
-            return
+            return False
 
-        # keep your intentional mapping: assign per-forum templates here
+        # Keep your intentional mapping: assign per-forum templates here
         self._forum_templates = templates
 
         # choose template by first matching applied tag, else default
@@ -178,22 +198,56 @@ class StickyCog(commands.Cog):
         color = basic_color(str(template.get("color", "") or "blurple"))
         embed = discord.Embed(title=title or None, description=desc or None, color=color)
 
-        # initial delay helps when the post includes media attachments
-        try:
-            await asyncio.sleep(1.0)
-        except Exception:
-            pass
+        await thread.send(embed=embed)
+        return True
 
-        for attempt in range(6):
-            try:
-                await thread.send(embed=embed)
+    async def _forum_first_message_flow(self, thread: discord.Thread, prefer_normal: bool) -> None:
+        """One task at a time per thread.
+
+        - Normal path (on_thread_create) runs first.
+        - Fallback (on_message) waits, then checks if the bot already posted; if not, sends.
+        """
+        if thread.guild is None:
+            return
+        if thread.parent_id not in self._forum_rules:
+            return
+
+        # Fast skip if already handled in this runtime.
+        if thread.id in self._forum_sent_threads:
+            return
+
+        lock = self._get_thread_lock(thread.id)
+        async with lock:
+            # Re-check inside lock.
+            if thread.id in self._forum_sent_threads:
+                return
+
+            # If fallback, give normal path time to send first.
+            if not prefer_normal:
+                try:
+                    await asyncio.sleep(2.0)
+                except Exception:
+                    pass
+
+            # Manual check: if bot already posted in the thread, don't send again.
+            if await self._thread_has_bot_message(thread):
                 self._forum_sent_threads.add(thread.id)
                 return
-            except Exception:
+
+            # Try to send with retries (attachment posts can race thread readiness)
+            for attempt in range(6):
                 try:
-                    await asyncio.sleep(1.0 + attempt * 0.5)
-                except Exception:
+                    if attempt == 0:
+                        await asyncio.sleep(1.0)
+                    sent = await self._send_forum_first_message(thread)
+                    if sent:
+                        self._forum_sent_threads.add(thread.id)
                     return
+                except Exception:
+                    try:
+                        await asyncio.sleep(1.0 + attempt * 0.5)
+                    except Exception:
+                        return
 
     @commands.Cog.listener()
     async def on_thread_create(self, thread: discord.Thread):
@@ -205,9 +259,9 @@ class StickyCog(commands.Cog):
         if thread.parent_id not in self._forum_rules:
             return
 
-        # Schedule sending with delay+retries.
+        # Normal path: prefer_normal=True so it doesn't delay.
         try:
-            asyncio.create_task(self._send_forum_first_message_retry(thread))
+            asyncio.create_task(self._forum_first_message_flow(thread, prefer_normal=True))
         except Exception:
             pass
 
