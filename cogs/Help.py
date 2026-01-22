@@ -193,7 +193,7 @@ class HelpCog(commands.Cog):
             await self._start_help_session(interaction.user.id, guild.id, "appeal_punishment", {})
             embed = discord.Embed(
                 title="Appeal punishment",
-                description="You can appeal either by our [google form](https://forms.gle/1fgqKtyo6okiQzjBA) or directly here.\n\nIf you chose the **first one**, click the link above and type **cancel**. If you choose the second one, please **state the reason for you punishment and what happened.**",
+                description="You can appeal either by our [google form](https://forms.gle/1fgqKtyo6okiQzjBA) or directly here.\n\nIf you chose the **first one**, click the link above and type **cancel**. If you chose the second one, please **state the reason for you punishment and what happened.**",
             )
             return await interaction.response.send_message(embed=embed)
 
