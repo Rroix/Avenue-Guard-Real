@@ -193,7 +193,7 @@ class HelpCog(commands.Cog):
             await self._start_help_session(interaction.user.id, guild.id, "appeal_punishment", {})
             embed = discord.Embed(
                 title="Appeal punishment",
-                description="Please fill [this form](https://forms.gle/1fgqKtyo6okiQzjBA) out\n\nType **cancel** to stop.",
+                description="You can appeal either by our [google form](https://forms.gle/1fgqKtyo6okiQzjBA) or directly here.\n\nIf you chose the **first one**, click the link above and type **cancel**. If you choose the second one, please **state the reason for you punishment and what happened.**",
             )
             return await interaction.response.send_message(embed=embed)
 
@@ -450,7 +450,7 @@ class HelpCog(commands.Cog):
         channel = guild.get_channel(ch_id) if ch_id else None
         if not isinstance(channel, discord.TextChannel):
             return
-        embed = discord.Embed(title="User/Message Report")
+        embed = discord.Embed(title="User Report")
         embed.add_field(name="Reporter", value=f"<@{user_id}> ({user_id})", inline=False)
         embed.add_field(name="Details", value=str(data.get("report", ""))[:1024], inline=False)
         await channel.send(embed=embed)
@@ -474,7 +474,7 @@ class HelpCog(commands.Cog):
         req_ch_id = cfg.get_int("channels", "transcript_requests_channel_id")
         channel = guild.get_channel(req_ch_id) if req_ch_id else None
         if not isinstance(channel, discord.TextChannel):
-            return False, "Transcript requests channel is not configured."
+            return False, "Transcript requests channel is not configured, DM Average Hollow Knight Fan."
 
         if ticket_id is not None:
             existing = await self.bot.db.fetchone(
