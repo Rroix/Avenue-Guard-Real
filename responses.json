@@ -151,6 +151,17 @@
     "Channels": []
   },
   {
+    "_comment": "Stereo Madness gif",
+    "Content": "stereo madness",
+    "Whole_message": false,
+    "Respond": true,
+    "Embed": false,
+    "Embed_text": "",
+    "Message": true,
+    "Message_text": "https://tenor.com/view/telescophix-geometrydash-fast-fastgeometry-telerun-mortyrun-gif-12157075124396105392",
+    "Channels": []
+  },
+  {
     "_comment": "Booster: OrangeGMD",
     "Content": "soggy",
     "Whole_message": true,
