@@ -210,7 +210,7 @@ class HelpCog(commands.Cog):
             warning = bool(cfg.get("help", "report_warning_enabled", default=True))
             text = "Please send the message link (preferred) OR user ID along with the reason for your report with evidence.\n\nType **cancel** to stop."
             if warning:
-                text = "⚠️ False reports will lead to punishment.\n\n" + text
+                text = "**False reports will lead to punishment**.\n\n" + text
 
             await self._start_help_session(interaction.user.id, guild.id, "report_details", {})
             embed = discord.Embed(title="Report a user", description=text)
@@ -229,7 +229,7 @@ class HelpCog(commands.Cog):
             await self._start_help_session(interaction.user.id, guild.id, "bot_issue_details", {})
             embed = discord.Embed(
                 title="Report a bot issue",
-                description="Please describe the bot issue/bug, and include screenshots or steps to reproduce/explanation in a single message.\n\nType **cancel** to stop.",
+                description="Please describe the bot issue/bug, and include screenshots or steps to reproduce/explanation in __a single message__.\n\nType **cancel** to stop.",
             )
             return await interaction.response.send_message(embed=embed)
 
@@ -274,7 +274,7 @@ class HelpCog(commands.Cog):
         excluded_role_id = cfg.get_int("roles", "excluded_tracking_role_id")
         member = guild.get_member(interaction.user.id)
         if member is None:
-            return await interaction.response.send_message("You must be in the server...")
+            return await interaction.response.send_message("You must be in the server... If you want to appeal a ban, please use our google form")
 
         if excluded_role_id and any(r.id == excluded_role_id for r in member.roles):
             return await interaction.response.send_message("You are excluded from weekly tracking.")
@@ -391,7 +391,7 @@ class HelpCog(commands.Cog):
                 return True
 
             if int(row["creator_id"]) != message.author.id:
-                await message.channel.send("That is nor your ticket though")
+                await message.channel.send("That is not your ticket though")
                 return True
 
             t_id = int(row["ticket_id"]) if row["ticket_id"] is not None else None
@@ -538,11 +538,11 @@ class HelpCog(commands.Cog):
         if not approved:
             await self.bot.db.execute("UPDATE transcript_requests SET status='denied' WHERE request_message_id=?", (interaction.message.id,))
             try:
-                await interaction.message.edit(content="❌ Denied", view=None)
+                await interaction.message.edit(content="Denied", view=None)
             except Exception:
                 pass
             try:
-                await interaction.response.send_message("Denied.", ephemeral=True)
+                await interaction.response.send_message("Denied", ephemeral=True)
             except Exception:
                 pass
             try:
@@ -562,7 +562,7 @@ class HelpCog(commands.Cog):
         ok = await self._dm_transcript(interaction.guild, requester_id, ticket_channel_id, ticket_id)
 
         try:
-            await interaction.message.edit(content=("Approved and sent" if ok else "⚠️ Approved (failed to deliver)"), view=None)
+            await interaction.message.edit(content=("Approved and sent" if ok else "Approved (failed to deliver, contact staff)"), view=None)
         except Exception:
             pass
 
@@ -627,7 +627,7 @@ class HelpCog(commands.Cog):
 
         member = guild.get_member(interaction.user.id)
         if member is None:
-            return await interaction.response.send_message("You must be in the server to create a ticket!", ephemeral=True)
+            return await interaction.response.send_message("You must be in the server to create a ticket", ephemeral=True)
 
         if not confirmed:
             return await interaction.response.send_message("Cancelled.", ephemeral=True)
