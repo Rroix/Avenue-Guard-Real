@@ -62,14 +62,6 @@ class DailyStats:
     by_user: Dict[int, int] = field(default_factory=dict)
 
 class BackgroundCog(commands.Cog):
-    """Background tasks & daily telemetry (config-driven).
-
-    This cog is intentionally "low drama":
-    - It never DMs users.
-    - It only posts a daily summary embed (optional) to a configured channel.
-    - It rotates the bot's presence (optional).
-    - It persists daily stats to SQLite for future features.
-    """
 
     def __init__(self, bot: discord.Bot):
         self.bot = bot
