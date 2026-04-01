@@ -196,12 +196,13 @@
       "_comment": "FAQ entries shown in DMs when user selects FAQ.",
       "title": "FAQ",
       "entries": [
-        "How do I request my level?\n> Try to use https://discord.com/channels/717003826288394271/1120726649953062982/1286422838496067594, if it's closed it will let you know.",
+        "How do I request my level?\n> Try to use https://discord.com/channels/717003826288394271/1464023199535857867/1465793845513031680, if it's closed it will let you know.",
         "How do I partner with GD Avenue?\n> DM an Owner/Admin if you follows our requirements found in https://discord.com/channels/717003826288394271/731145959043498116",
         "How do weekly requests work?\n> Be active during the week and the most active members get DMed on Sunday to claim their request",
         "How do I contact mods?\n> Use 'Mod contact' to open a private ticket in my selection menu, though only use this if needed",
-        "My level got send/rejected in level requests, what do I do now?\n> If your level got rejected, try to take into account the feedback we give you. If it got accepted, we might contact you with more info, but know that your level is on its way to mods!",
-        "Where do I post/search for collabs?\n> Use https://discord.com/channels/717003826288394271/1104487618026143754 and follow our guidelines!"
+        "My level got send/rejected in level requests, what do I do now?\n> If your level got rejected, try to take into account the feedback we give you. If it got accepted, we might contact you with more info, but know that your level might be on its way to mods!",
+        "Where do I post/search for collabs?\n> Use https://discord.com/channels/717003826288394271/1104487618026143754 and follow our guidelines!",
+        "Where do I ask for feedback?\n> Use https://discord.com/channels/717003826288394271/1480304268346130552 and follow our guidelines!"
       ]
     },
     "report_warning_enabled": true,
