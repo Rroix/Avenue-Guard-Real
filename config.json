@@ -167,7 +167,11 @@
   "_comment_entries": "Optional: multiple DM-on-role rules.",
   "entries": [
     { "role_id": "1159183038018768916", "message": "Hi {user}, you got {role} in {guild}! Please contact staff through my DMs if this was a mistake. If you were muted as a punishment for an infraction, please ignore this."},
-    { "role_id": "1448668022070968441", "message": "Hi {user}, you have been marked as {role}, please contact staff through my DMs to verify you are not a bot."}
+    { "role_id": "1448668022070968441", "message": "Hi {user}, you have been marked as {role}, please select 'Contact staff' after DMing me on my selection menu to verify you are not a bot."},
+    {"role_id": "1481774599820673154", "message" : "Hi {user], you have received {role}, this will restrict your access to our server feedback. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."},
+    {"role_id": "1463987510236545127", "message" : "Hi {user], you have received {role}, this will restrict your access to our level requests. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection or fill out this [form](https://forms.gle/o6YSEfRQt4HW9ozGA)."},
+    {"role_id": "1436721868244779089", "message" : "Hi {user], you have received {role}, this will restrict your access to our Creator Points role proof channel. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."}
+
   ]
 },
   "fun": {
@@ -197,12 +201,14 @@
       "title": "FAQ",
       "entries": [
         "How do I request my level?\n> Try to use https://discord.com/channels/717003826288394271/1464023199535857867/1465793845513031680, if it's closed it will let you know.",
-        "How do I partner with GD Avenue?\n> DM an Owner/Admin if you follows our requirements found in https://discord.com/channels/717003826288394271/731145959043498116",
-        "How do weekly requests work?\n> Be active during the week and the most active members get DMed on Sunday to claim their request",
-        "How do I contact mods?\n> Use 'Mod contact' to open a private ticket in my selection menu, though only use this if needed",
+        "How do I partner with GD Avenue?\n> DM an Mayor/Secretary if your server follows our requirements found in https://discord.com/channels/717003826288394271/731145959043498116.",
+        "How do weekly requests work?\n> Being active during the week sums up your activity count, the most active members get DMed on Sunday to claim their request each week.",
+        "How do I contact Mods/Staff/Admins?\n> Use 'Staff contact' to open a private ticket in my selection menu, though only use this if needed.",
         "My level got send/rejected in level requests, what do I do now?\n> If your level got rejected, try to take into account the feedback we give you. If it got accepted, we might contact you with more info, but know that your level might be on its way to mods!",
         "Where do I post/search for collabs?\n> Use https://discord.com/channels/717003826288394271/1104487618026143754 and follow our guidelines!",
-        "Where do I ask for feedback?\n> Use https://discord.com/channels/717003826288394271/1480304268346130552 and follow our guidelines!"
+        "Where do I ask for feedback?\n> Use https://discord.com/channels/717003826288394271/1480304268346130552 and follow our guidelines!",
+        "Do you send levels to mods?\n> Yes, though we only send a certain amount of levels, which are determined by how many judges are available per request wave.",
+        "Are there any extra resources related to the server?\n> Yeah! You can find our **level idea generator**, extended rules, and an about us section on [this web](https://gdavenue.netlify.app/)."
       ]
     },
     "report_warning_enabled": true,
@@ -225,23 +231,31 @@
       "statuses": [
         {
           "type": "watching",
-          "text": "{members} members"
+          "text": "{members} total residents"
         },
         {
           "type": "watching",
-          "text": "{online} online"
+          "text": "{online} people on the street"
         },
         {
           "type": "listening",
-          "text": "{week_msgs} msgs this week"
+          "text": "{week_msgs} talks this week"
         },
         {
           "type": "playing",
-          "text": "Current most active member is {week_top}"
+          "text": "Current most active resident is {week_top}"
         },
         {
           "type": "competing",
-          "text": "{open_tickets} open tickets :)"
+          "text": "Guarding the avenue"
+        },
+        {
+          "type": "listening",
+          "text": "The street sounds! :D"
+        },
+        {
+          "type": "watching",
+          "text": "Checking requested levels"
         }
       ]
     }
