@@ -128,10 +128,11 @@ class ModCog(commands.Cog):
         for role_id, msg_template in rules:
             if role_id in after_ids and role_id not in before_ids:
                 role = after.guild.get_role(role_id)
-                txt = str(msg_template).format(
-                    user=after.mention,
-                    role=(role.name if role else str(role_id)),
-                    guild=after.guild.name
+                txt = (
+                    str(msg_template)
+                    .replace("{user}", after.mention)
+                    .replace("{role}", role.name if role else str(role_id))
+                    .replace("{guild}", after.guild.name)
                 )
                 try:
                     await after.send(txt)
