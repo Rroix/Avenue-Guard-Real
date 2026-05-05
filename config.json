@@ -168,10 +168,9 @@
   "entries": [
     { "role_id": "1159183038018768916", "message": "Hi {user}, you got {role} in {guild}! Please contact staff through my DMs if this was a mistake. If you were muted as a punishment for an infraction, please ignore this."},
     { "role_id": "1448668022070968441", "message": "Hi {user}, you have been marked as {role}, please select 'Contact staff' after DMing me on my selection menu to verify you are not a bot."},
-    {"role_id": "1481774599820673154", "message" : "Hi {user], you have received {role}, this will restrict your access to our server feedback. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."},
-    {"role_id": "1463987510236545127", "message" : "Hi {user], you have received {role}, this will restrict your access to our level requests. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection or fill out this [form](https://forms.gle/o6YSEfRQt4HW9ozGA)."},
-    {"role_id": "1436721868244779089", "message" : "Hi {user], you have received {role}, this will restrict your access to our Creator Points role proof channel. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."}
-
+    {"role_id": "1481774599820673154", "message" : "Hi {user}, you have received {role}, this will restrict your access to our server feedback. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."},
+    {"role_id": "1463987510236545127", "message" : "Hi {user}, you have received {role}, this will restrict your access to our level requests. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection or fill out this [form](https://forms.gle/o6YSEfRQt4HW9ozGA)."},
+    {"role_id": "1436721868244779089", "message" : "Hi {user}, you have received {role}, this will restrict your access to our Creator Points role proof channel. If you think this was a mistake or would like to appeal, please DM me and select 'Appeal punishment' on my menu selection."}
   ]
 },
   "fun": {
