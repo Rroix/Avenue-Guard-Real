@@ -321,7 +321,12 @@ class StickyCog(commands.Cog):
                 pass
 
         try:
-            await thread.delete(reason=f"Missing required word: {required_word}")
+            try:
+                if getattr(thread, "archived", False) or getattr(thread, "locked", False):
+                    await thread.edit(archived=False, locked=False)
+            except Exception:
+                pass
+            await thread.delete()
         except Exception as e:
             await log_error(self.bot, f"Could not delete thread {thread.id} missing required word {required_word!r}: {repr(e)}")
 
