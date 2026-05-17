@@ -20,6 +20,12 @@ class Config:
         raw = self.path.read_text(encoding="utf-8")
         self.data = json.loads(raw)
 
+    def save(self) -> None:
+        self.path.write_text(
+            json.dumps(self.data, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+
     def get(self, *path: str, default: Any = None) -> Any:
         cur: Any = self.data
         for key in path:
