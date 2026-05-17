@@ -19,7 +19,9 @@ class ModCog(commands.Cog):
             return
 
         target_channel_id = cfg.get_int("channels", "autodelete_channel_id")
-        if target_channel_id and message.channel.id != target_channel_id:
+        if not target_channel_id:
+            return
+        if message.channel.id != target_channel_id:
             return
 
         whitelist_roles = cfg.get_int_list("roles", "whitelisted_deletion_ID_roles")
@@ -57,7 +59,9 @@ class ModCog(commands.Cog):
             return
 
         target_channel_id = cfg.get_int("channels", "autodelete_channel_id")
-        if target_channel_id and payload.channel_id != target_channel_id:
+        if not target_channel_id:
+            return
+        if payload.channel_id != target_channel_id:
             return
 
         guild = self.bot.get_guild(payload.guild_id)
