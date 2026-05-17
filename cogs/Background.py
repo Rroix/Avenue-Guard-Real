@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, time as dtime
+from datetime import datetime, timedelta, time as dtime
 from typing import Dict, Optional, List, Tuple
 
 import discord
@@ -97,15 +97,11 @@ class BackgroundCog(commands.Cog):
         allowed = cfg.get_int("guild", "allowed_guild_id")
         guild = self.bot.get_guild(allowed) if allowed else None
         if guild:
+            saved = await self._load_daily_stats(guild.id, self._current_day)
+            if saved is not None:
+                self.stats = saved
             now_ts = int(time.time())
-            for m in guild.members:
-                try:
-                    if m.bot:
-                        continue
-                    if m.voice and m.voice.channel:
-                        self.voice_sessions[m.id] = now_ts
-                except Exception:
-                    continue
+            self.voice_sessions = self._voice_sessions_from_guild(guild, now_ts)
 
         # Start loops
         if self._daily_summary_enabled():
@@ -232,12 +228,91 @@ class BackgroundCog(commands.Cog):
     def _daily_reset_after_report(self) -> bool:
         return bool(self.bot.config.get("background", "daily_summary", "reset_after_report", default=True))
 
-    def _rollover_if_needed(self):
+    def _voice_sessions_from_guild(self, guild: discord.Guild, now_ts: int) -> Dict[int, int]:
+        sessions: Dict[int, int] = {}
+        for m in guild.members:
+            try:
+                if not m.bot and m.voice and m.voice.channel:
+                    sessions[m.id] = now_ts
+            except Exception:
+                continue
+        return sessions
+
+    def _stats_payload(self, day_key: str, snapshot: DailyStats) -> dict:
+        return {
+            "day_key": day_key,
+            "messages": snapshot.messages,
+            "edits": snapshot.edits,
+            "deletes": snapshot.deletes,
+            "reactions": snapshot.reactions,
+            "joins": snapshot.joins,
+            "leaves": snapshot.leaves,
+            "bans": snapshot.bans,
+            "unbans": snapshot.unbans,
+            "boosts": snapshot.boosts,
+            "unboosts": snapshot.unboosts,
+            "voice_minutes": snapshot.voice_minutes,
+            "peak_voice_users": snapshot.peak_voice_users,
+            "peak_online_members": snapshot.peak_online_members,
+            "commands": snapshot.commands,
+            "command_errors": snapshot.command_errors,
+            "by_channel": snapshot.by_channel,
+            "by_user": snapshot.by_user,
+            "commands_by_name": snapshot.commands_by_name,
+        }
+
+    def _stats_from_payload(self, payload: dict) -> DailyStats:
+        snapshot = DailyStats()
+        for attr in (
+            "messages", "edits", "deletes", "reactions", "joins", "leaves", "bans", "unbans",
+            "boosts", "unboosts", "voice_minutes", "peak_voice_users", "peak_online_members",
+            "commands", "command_errors",
+        ):
+            try:
+                setattr(snapshot, attr, int(payload.get(attr, 0) or 0))
+            except Exception:
+                pass
+        snapshot.by_channel = {int(k): int(v) for k, v in (payload.get("by_channel") or {}).items()}
+        snapshot.by_user = {int(k): int(v) for k, v in (payload.get("by_user") or {}).items()}
+        snapshot.commands_by_name = {str(k): int(v) for k, v in (payload.get("commands_by_name") or {}).items()}
+        return snapshot
+
+    async def _load_daily_stats(self, guild_id: int, day_key: str) -> Optional[DailyStats]:
+        row = await self.bot.db.fetchone(
+            "SELECT payload_json FROM daily_stats WHERE guild_id=? AND day_key=?",
+            (guild_id, day_key),
+        )
+        if not row:
+            return None
+        try:
+            return self._stats_from_payload(json.loads(row["payload_json"] or "{}"))
+        except Exception:
+            return None
+
+    async def _persist_daily_stats(self, guild_id: int, day_key: str, snapshot: DailyStats) -> None:
+        payload = self._stats_payload(day_key, snapshot)
+        await self.bot.db.execute(
+            "INSERT OR REPLACE INTO daily_stats(guild_id, day_key, payload_json, created_ts) VALUES(?,?,?,?)",
+            (guild_id, day_key, json.dumps(payload, separators=(',', ':')), int(time.time())),
+        )
+
+    def _rollover_if_needed(self, guild: Optional[discord.Guild] = None):
         today = _day_key()
         if today != self._current_day:
+            allowed = self.bot.config.get_int("guild", "allowed_guild_id")
+            if allowed:
+                old_day = self._current_day
+                old_stats = self.stats
+                try:
+                    asyncio.create_task(self._persist_daily_stats(allowed, old_day, old_stats))
+                except Exception:
+                    pass
             self._current_day = today
             self.stats = DailyStats()
-            self.voice_sessions.clear()
+            if guild is not None:
+                self.voice_sessions = self._voice_sessions_from_guild(guild, int(time.time()))
+            else:
+                self.voice_sessions.clear()
 
     # --------------------
     # Event listeners
@@ -252,7 +327,7 @@ class BackgroundCog(commands.Cog):
         if message.channel.id in self._excluded_channels():
             return
 
-        self._rollover_if_needed()
+        self._rollover_if_needed(message.guild)
         snapshot = self.stats
         snapshot.messages += 1
         snapshot.by_channel[message.channel.id] = snapshot.by_channel.get(message.channel.id, 0) + 1
@@ -267,7 +342,7 @@ class BackgroundCog(commands.Cog):
             return
         if after.channel.id in self._excluded_channels():
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(after.guild)
         snapshot = self.stats
         snapshot.edits += 1
 
@@ -280,7 +355,7 @@ class BackgroundCog(commands.Cog):
             return
         if message.channel and message.channel.id in self._excluded_channels():
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(message.guild)
         snapshot = self.stats
         snapshot.deletes += 1
 
@@ -293,7 +368,7 @@ class BackgroundCog(commands.Cog):
             return
         if reaction.message.channel.id in self._excluded_channels():
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(reaction.message.guild)
         snapshot = self.stats
         snapshot.reactions += 1
 
@@ -302,7 +377,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if member.bot or not ensure_allowed_guild_id(member.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(member.guild)
         snapshot = self.stats
         snapshot.joins += 1
 
@@ -311,7 +386,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if member.bot or not ensure_allowed_guild_id(member.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(member.guild)
         snapshot = self.stats
         snapshot.leaves += 1
 
@@ -320,7 +395,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if not ensure_allowed_guild_id(guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(guild)
         snapshot = self.stats
         snapshot.bans += 1
 
@@ -329,7 +404,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if not ensure_allowed_guild_id(guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(guild)
         snapshot = self.stats
         snapshot.unbans += 1
 
@@ -338,7 +413,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if after.bot or not ensure_allowed_guild_id(after.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(after.guild)
         snapshot = self.stats
         if before.premium_since is None and after.premium_since is not None:
             snapshot.boosts += 1
@@ -350,7 +425,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if member.bot or not ensure_allowed_guild_id(member.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(member.guild)
         snapshot = self.stats
         now_ts = int(time.time())
 
@@ -377,7 +452,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if not ensure_allowed_guild_id(ctx.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(ctx.guild)
         snapshot = self.stats
         snapshot.commands += 1
         name = getattr(ctx.command, "qualified_name", None) or getattr(ctx.command, "name", "unknown")
@@ -390,7 +465,7 @@ class BackgroundCog(commands.Cog):
         allowed = self.bot.config.get_int("guild", "allowed_guild_id")
         if not ensure_allowed_guild_id(ctx.guild, allowed):
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(ctx.guild)
         snapshot = self.stats
         snapshot.command_errors += 1
 
@@ -403,11 +478,15 @@ class BackgroundCog(commands.Cog):
         guild = self.bot.get_guild(allowed) if allowed else None
         if guild is None:
             return
-        self._rollover_if_needed()
+        self._rollover_if_needed(guild)
         snapshot = self.stats
         try:
             online = sum(1 for m in guild.members if (not m.bot) and m.status != discord.Status.offline)
             snapshot.peak_online_members = max(snapshot.peak_online_members, online)
+        except Exception:
+            pass
+        try:
+            await self._persist_daily_stats(guild.id, self._current_day, snapshot)
         except Exception:
             pass
 
@@ -478,14 +557,14 @@ class BackgroundCog(commands.Cog):
         if guild is None:
             return
 
-        # Report the day we have been collecting, then roll over to today.
         today = _day_key()
-        report_day = self._current_day
-        snapshot = self.stats
-        if today != self._current_day:
-            # day changed since last event; report yesterday's snapshot
-            report_day = self._current_day
-            snapshot = self.stats
+        yesterday = _day_key(now_madrid() - timedelta(days=1))
+        report_day = self._current_day if self._current_day != today else yesterday
+        snapshot = self.stats if report_day == self._current_day else None
+        if snapshot is None:
+            snapshot = await self._load_daily_stats(guild.id, report_day)
+        if snapshot is None:
+            snapshot = DailyStats()
         day_key = report_day
 
         embed = discord.Embed(
@@ -542,38 +621,14 @@ class BackgroundCog(commands.Cog):
 
         # persist
         try:
-            payload = {
-                "day_key": day_key,
-                "messages": snapshot.messages,
-                "edits": snapshot.edits,
-                "deletes": snapshot.deletes,
-                "reactions": snapshot.reactions,
-                "joins": snapshot.joins,
-                "leaves": snapshot.leaves,
-                "bans": snapshot.bans,
-                "unbans": snapshot.unbans,
-                "boosts": snapshot.boosts,
-                "unboosts": snapshot.unboosts,
-                "voice_minutes": snapshot.voice_minutes,
-                "peak_voice_users": snapshot.peak_voice_users,
-                "peak_online_members": snapshot.peak_online_members,
-                "commands": snapshot.commands,
-                "command_errors": snapshot.command_errors,
-                "by_channel": snapshot.by_channel,
-                "by_user": snapshot.by_user,
-                "commands_by_name": snapshot.commands_by_name,
-            }
-            await self.bot.db.execute(
-                "INSERT OR REPLACE INTO daily_stats(guild_id, day_key, payload_json, created_ts) VALUES(?,?,?,?)",
-                (guild.id, day_key, json.dumps(payload, separators=(',', ':')), int(time.time()))
-            )
+            await self._persist_daily_stats(guild.id, day_key, snapshot)
         except Exception:
             pass
 
-        if self._daily_reset_after_report():
-            self._current_day = _day_key()
+        if self._daily_reset_after_report() and self._current_day == day_key:
+            self._current_day = today
             self.stats = DailyStats()
-            self.voice_sessions.clear()
+            self.voice_sessions = self._voice_sessions_from_guild(guild, int(time.time()))
 
     @daily_report.before_loop
     async def _before_daily(self):
