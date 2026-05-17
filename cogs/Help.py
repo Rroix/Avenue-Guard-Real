@@ -11,6 +11,7 @@ import discord
 from discord.ext import commands
 
 from utils.checks import ensure_allowed_guild_id, is_mod
+from utils.errors import log_error
 from utils.views import HelpMenuView, HelpModConfirmView, TicketClosePromptView, TranscriptRequestView
 from utils.transcript import build_text_transcript
 from utils.timeutils import now_madrid, week_start_sunday
@@ -271,34 +272,44 @@ class HelpCog(commands.Cog):
 
     async def _send_weekly_status(self, interaction: discord.Interaction, guild: discord.Guild):
         cfg = self.bot.config
-        excluded_role_id = cfg.get_int("roles", "excluded_tracking_role_id")
+        excluded_role_ids = set(cfg.get_int_list("roles", "excluded_tracking_role_id"))
         member = guild.get_member(interaction.user.id)
         if member is None:
             return await interaction.response.send_message("You must be in the server... If you want to appeal a ban, please use our google form")
 
-        if excluded_role_id and any(r.id == excluded_role_id for r in member.roles):
+        if excluded_role_ids and any(r.id in excluded_role_ids for r in member.roles):
             return await interaction.response.send_message("You are excluded from weekly tracking.")
 
         ws = week_start_sunday(now_madrid()).isoformat()
-        row = await self.bot.db.fetchone(
-            "SELECT count FROM activity_counts WHERE guild_id=? AND user_id=? AND week_start=?",
-            (guild.id, member.id, ws),
-        )
-        count = int(row["count"]) if row else 0
-
-        rows = await self.bot.db.fetchall(
-            "SELECT user_id, count FROM activity_counts WHERE guild_id=? AND week_start=? ORDER BY count DESC LIMIT 20",
-            (guild.id, ws),
-        )
-        rank = None
-        for i, r in enumerate(rows, start=1):
-            if int(r["user_id"]) == member.id:
-                rank = i
-                break
+        tracking = self.bot.get_cog("TrackingCog")
+        if tracking:
+            count, rank, _eligible_total = await tracking.get_member_stats(guild, ws, member.id)
+        else:
+            row = await self.bot.db.fetchone(
+                "SELECT count FROM activity_counts WHERE guild_id=? AND user_id=? AND week_start=?",
+                (guild.id, member.id, ws),
+            )
+            count = int(row["count"]) if row else 0
+            rows = await self.bot.db.fetchall(
+                "SELECT user_id, count FROM activity_counts WHERE guild_id=? AND week_start=? ORDER BY count DESC LIMIT 20",
+                (guild.id, ws),
+            )
+            rank = None
+            eligible_rank = 0
+            for r in rows:
+                candidate = guild.get_member(int(r["user_id"]))
+                if candidate is None or candidate.bot:
+                    continue
+                if excluded_role_ids and any(role.id in excluded_role_ids for role in candidate.roles):
+                    continue
+                eligible_rank += 1
+                if candidate.id == member.id:
+                    rank = eligible_rank
+                    break
 
         embed = discord.Embed(title="Weekly status")
         embed.add_field(name="Messages counted", value=str(count), inline=True)
-        embed.add_field(name="Top 20 rank", value=(f"#{rank}" if rank else "Not in top 20"), inline=True)
+        embed.add_field(name="Top 20 rank", value=(f"#{rank}" if rank and rank <= 20 else "Not in top 20"), inline=True)
         await interaction.response.send_message(embed=embed)
 
     # -----------------------------
@@ -729,45 +740,72 @@ class HelpCog(commands.Cog):
             return
 
         await interaction.response.send_message("Closing ticket...", ephemeral=True)
-        await self.close_ticket_channel(interaction.guild, interaction.channel_id)
+        ok = await self.close_ticket_channel(interaction.guild, interaction.channel_id)
+        if not ok:
+            try:
+                await interaction.followup.send("I couldn't close the ticket safely. Check the ticket channel for details.", ephemeral=True)
+            except Exception:
+                pass
 
-    async def close_ticket_channel(self, guild: discord.Guild, channel_id: int):
+    async def close_ticket_channel(self, guild: discord.Guild, channel_id: int) -> bool:
         cfg = self.bot.config
         log_channel_id = cfg.get_int("channels", "general_logging_channel_id")
         log_channel = guild.get_channel(log_channel_id) if log_channel_id else None
         channel = guild.get_channel(channel_id)
 
         if not isinstance(channel, discord.TextChannel):
-            return
+            return False
 
         row = await self.bot.db.fetchone("SELECT ticket_id FROM tickets WHERE channel_id=?", (channel_id,))
         ticket_id = int(row["ticket_id"]) if row and row["ticket_id"] is not None else None
 
+        if not isinstance(log_channel, discord.TextChannel):
+            try:
+                await channel.send("I couldn't close this ticket because the transcript log channel is not configured.")
+            except Exception:
+                pass
+            return False
+
         try:
             transcript_path = await build_text_transcript(channel)
-            if isinstance(log_channel, discord.TextChannel):
-                sent = await log_channel.send(
-                    content=f"Transcript for {channel.name} ({channel.id})" + (f" | Ticket T{ticket_id}" if ticket_id else ""),
-                    file=discord.File(transcript_path, filename=f"transcript-{ticket_id or channel.id}.txt"),
+            sent = await log_channel.send(
+                content=f"Transcript for {channel.name} ({channel.id})" + (f" | Ticket T{ticket_id}" if ticket_id else ""),
+                file=discord.File(transcript_path, filename=f"transcript-{ticket_id or channel.id}.txt"),
+            )
+        except Exception as e:
+            await log_error(self.bot, f"Ticket close failed before deletion for channel_id={channel_id}: {repr(e)}")
+            try:
+                await channel.send("I couldn't save the transcript, so I did not delete this ticket.")
+            except Exception:
+                pass
+            return False
+
+        if ticket_id is not None:
+            try:
+                await self.bot.db.execute(
+                    "INSERT OR REPLACE INTO ticket_transcripts(guild_id, ticket_id, log_channel_id, log_message_id, created_ts) "
+                    "VALUES(?,?,?,?,?)",
+                    (guild.id, ticket_id, sent.channel.id, sent.id, int(time.time())),
                 )
-                if ticket_id is not None:
-                    await self.bot.db.execute(
-                        "INSERT OR REPLACE INTO ticket_transcripts(guild_id, ticket_id, log_channel_id, log_message_id, created_ts) "
-                        "VALUES(?,?,?,?,?)",
-                        (guild.id, ticket_id, sent.channel.id, sent.id, int(time.time())),
-                    )
-        except Exception:
-            pass
+            except Exception as e:
+                await log_error(self.bot, f"Ticket transcript index failed for ticket_id={ticket_id}: {repr(e)}")
+                try:
+                    await channel.send("I saved the transcript, but couldn't index it. I did not delete this ticket.")
+                except Exception:
+                    pass
+                return False
 
         try:
             await self.bot.db.execute("UPDATE tickets SET status='closed' WHERE channel_id=?", (channel_id,))
-        except Exception:
-            pass
+        except Exception as e:
+            await log_error(self.bot, f"Ticket status update failed for channel_id={channel_id}: {repr(e)}")
 
         try:
             await channel.delete(reason="Ticket closed")
-        except Exception:
-            pass
+            return True
+        except Exception as e:
+            await log_error(self.bot, f"Ticket delete failed for channel_id={channel_id}: {repr(e)}")
+            return False
 
 
 def setup(bot: discord.Bot):
