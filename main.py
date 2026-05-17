@@ -34,8 +34,10 @@ def create_bot() -> discord.Bot:
     async def on_ready():
         try:
             await bot.db.connect()
-        except Exception:
-            pass
+        except Exception as e:
+            await log_error(bot, f"Database setup failed on startup: {repr(e)}")
+            await bot.close()
+            return
 
         # Ensure only in allowed guild
         allowed = bot.config.get_int("guild", "allowed_guild_id")
