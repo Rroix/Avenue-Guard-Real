@@ -278,8 +278,8 @@ class CommandsCog(commands.Cog):
     async def forum_required_word(
         self,
         ctx: discord.ApplicationContext,
-        word: Optional[str] = None,
-        forum_channel_id: Optional[str] = None,
+        word: str = None,
+        forum_channel_id: str = None,
     ):
         if not self._in_allowed_guild(ctx):
             return await ctx.respond("Wrong server.", ephemeral=True)
