@@ -61,9 +61,6 @@ class MessageResponsesCog(commands.Cog):
         if not self._rules:
             return
 
-        if not self._cooldown_ok(message.author.id):
-            return
-
         content = (message.content or "").strip()
         lowered = content.casefold()
 
@@ -92,6 +89,9 @@ class MessageResponsesCog(commands.Cog):
                 respond = bool(rule.get("Respond", False))
                 use_embed = bool(rule.get("Embed", False))
                 use_msg = bool(rule.get("Message", False))
+
+                if (use_embed or use_msg) and not self._cooldown_ok(message.author.id):
+                    return
 
                 if use_embed:
                     et = rule.get("Embed_text", {}) or {}
