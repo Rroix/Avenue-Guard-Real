@@ -19,23 +19,27 @@ class Database:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = asyncio.Lock()
         self._conn: Optional[sqlite3.Connection] = None
+        self._ready = False
 
     async def connect(self) -> None:
         async with self._lock:
-            if self._conn is not None:
+            if self._conn is not None and self._ready:
                 return
 
-            def _open():
-                conn = sqlite3.connect(str(self.path), check_same_thread=False)
-                conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA journal_mode=WAL;")
-                conn.execute("PRAGMA foreign_keys=ON;")
-                conn.commit()
-                return conn
+            def _connect_and_migrate():
+                if self._conn is None:
+                    conn = sqlite3.connect(str(self.path), check_same_thread=False)
+                    conn.row_factory = sqlite3.Row
+                    conn.execute("PRAGMA journal_mode=WAL;")
+                    conn.execute("PRAGMA foreign_keys=ON;")
+                    conn.commit()
+                    self._conn = conn
 
-            self._conn = await asyncio.to_thread(_open)
+                assert self._conn is not None
+                self._migrate_sync()
 
-        await self._migrate()
+            await asyncio.to_thread(_connect_and_migrate)
+            self._ready = True
 
     async def close(self) -> None:
         async with self._lock:
@@ -48,6 +52,196 @@ class Database:
 
             await asyncio.to_thread(_close)
             self._conn = None
+            self._ready = False
+
+    def _migrate_sync(self) -> None:
+        assert self._conn is not None
+        stmts = [
+            """CREATE TABLE IF NOT EXISTS activity_counts(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY (guild_id, user_id, week_start)
+            );""",
+            """CREATE TABLE IF NOT EXISTS activity_last_counted(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                last_counted_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS weekly_claims(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                rank INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                contacted_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, week_start, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS weekly_sessions(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                stage TEXT NOT NULL,
+                expires_ts INTEGER NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                PRIMARY KEY (guild_id, week_start, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS weekly_dm_log(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                ts INTEGER NOT NULL
+            );""",
+            """CREATE TABLE IF NOT EXISTS weekly_reminders(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                reminded_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, week_start, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS weekly_runs(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                ran_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, week_start)
+            );""",
+            """CREATE TABLE IF NOT EXISTS tickets(
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER PRIMARY KEY,
+                creator_id INTEGER NOT NULL,
+                created_ts INTEGER NOT NULL,
+                last_user_activity_ts INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                ticket_id INTEGER
+            );""",
+            """CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_ticket_id
+                ON tickets(guild_id, ticket_id) WHERE ticket_id IS NOT NULL;""",
+            """CREATE TABLE IF NOT EXISTS ticket_sequences(
+                guild_id INTEGER PRIMARY KEY,
+                next_ticket_id INTEGER NOT NULL
+            );""",
+            """CREATE TABLE IF NOT EXISTS ticket_transcripts(
+                guild_id INTEGER NOT NULL,
+                ticket_id INTEGER NOT NULL,
+                log_channel_id INTEGER NOT NULL,
+                log_message_id INTEGER NOT NULL,
+                created_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, ticket_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS ticket_cooldowns(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                last_created_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS sticky_state(
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                last_sticky_message_id INTEGER,
+                PRIMARY KEY (guild_id, channel_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS help_sessions(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                stage TEXT NOT NULL,
+                created_ts INTEGER NOT NULL,
+                data_json TEXT NOT NULL DEFAULT '{}',
+                PRIMARY KEY (guild_id, user_id)
+            );""",
+            """CREATE TABLE IF NOT EXISTS help_cooldowns(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                last_used_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id, action)
+            );""",
+            """CREATE TABLE IF NOT EXISTS transcript_requests(
+                guild_id INTEGER NOT NULL,
+                request_message_id INTEGER PRIMARY KEY,
+                ticket_channel_id INTEGER NOT NULL,
+                requester_id INTEGER NOT NULL,
+                status TEXT NOT NULL,
+                created_ts INTEGER NOT NULL,
+                ticket_id INTEGER
+            );""",
+            """CREATE TABLE IF NOT EXISTS rps_streaks(
+                guild_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                streak INTEGER NOT NULL,
+                updated_ts INTEGER NOT NULL,
+                PRIMARY KEY (guild_id, user_id)
+            );""",
+        ]
+        for stmt in stmts:
+            self._conn.execute(stmt)
+
+        self._ensure_column_sync("tickets", "ticket_id", "INTEGER")
+        self._ensure_column_sync("transcript_requests", "ticket_id", "INTEGER")
+        self._normalize_weekly_dm_log_sync()
+        self._init_ticket_sequences_sync()
+        self._conn.commit()
+
+    def _ensure_column_sync(self, table: str, column: str, coltype: str) -> None:
+        assert self._conn is not None
+        info = list(self._conn.execute(f"PRAGMA table_info({table})"))
+        cols = {r["name"] for r in info}
+        if column in cols:
+            return
+        try:
+            self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+        except Exception:
+            pass
+
+    def _normalize_weekly_dm_log_sync(self) -> None:
+        assert self._conn is not None
+        info = list(self._conn.execute("PRAGMA table_info(weekly_dm_log)"))
+        cols = {r["name"] for r in info}
+        if "event" in cols and "action" not in cols:
+            return
+
+        event_expr = "''"
+        if "event" in cols and "action" in cols:
+            event_expr = "COALESCE(event, action, '')"
+        elif "event" in cols:
+            event_expr = "COALESCE(event, '')"
+        elif "action" in cols:
+            event_expr = "COALESCE(action, '')"
+
+        self._conn.execute("DROP TABLE IF EXISTS weekly_dm_log_new")
+        self._conn.execute(
+            """CREATE TABLE weekly_dm_log_new(
+                guild_id INTEGER NOT NULL,
+                week_start TEXT NOT NULL,
+                user_id INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                ts INTEGER NOT NULL
+            );"""
+        )
+        self._conn.execute(
+            "INSERT INTO weekly_dm_log_new(guild_id, week_start, user_id, event, detail, ts) "
+            f"SELECT guild_id, week_start, user_id, {event_expr}, COALESCE(detail, ''), ts FROM weekly_dm_log"
+        )
+        self._conn.execute("DROP TABLE weekly_dm_log")
+        self._conn.execute("ALTER TABLE weekly_dm_log_new RENAME TO weekly_dm_log")
+
+    def _init_ticket_sequences_sync(self) -> None:
+        assert self._conn is not None
+        cur = self._conn.execute("SELECT MAX(ticket_id) AS m FROM tickets")
+        row = cur.fetchone()
+        max_id = int(row["m"]) if row and row["m"] is not None else 0
+        for gid_row in self._conn.execute("SELECT DISTINCT guild_id FROM tickets"):
+            gid = int(gid_row["guild_id"])
+            cur2 = self._conn.execute("SELECT next_ticket_id FROM ticket_sequences WHERE guild_id=?", (gid,))
+            if cur2.fetchone() is None:
+                self._conn.execute(
+                    "INSERT INTO ticket_sequences(guild_id, next_ticket_id) VALUES(?,?)",
+                    (gid, max_id + 1 if max_id > 0 else 1),
+                )
 
     async def _migrate(self) -> None:
         # Create base tables first
