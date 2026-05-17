@@ -5,6 +5,7 @@ import random
 import secrets
 import asyncio
 import time
+import re
 from typing import Optional
 
 import discord
@@ -26,6 +27,7 @@ class CommandsCog(commands.Cog):
         # Command groups (guild-scoped for fast sync)
         self.tracking_group = discord.SlashCommandGroup("tracking", "Tracking commands", guild_ids=[self.allowed_guild_id] if self.allowed_guild_id else None)
         self.ticket_group = discord.SlashCommandGroup("ticket", "Ticket commands", guild_ids=[self.allowed_guild_id] if self.allowed_guild_id else None)
+        self.forum_group = discord.SlashCommandGroup("forum", "Forum moderation commands", guild_ids=[self.allowed_guild_id] if self.allowed_guild_id else None)
 
         # register commands
         self.tracking_group.command(name="top", description="Show the current week's top 20 active members.")(self.tracking_top)
@@ -34,9 +36,11 @@ class CommandsCog(commands.Cog):
         self.tracking_group.command(name="force_dm", description="Force-send the weekly request DM to a user (Admins/Owners only).")(self.tracking_force_dm)
 
         self.ticket_group.command(name="close", description="Close the current ticket channel (Mods only).")(self.ticket_close)
+        self.forum_group.command(name="required_word", description="View or update a forum required word (Admins only).")(self.forum_required_word)
 
         bot.add_application_command(self.tracking_group)
         bot.add_application_command(self.ticket_group)
+        bot.add_application_command(self.forum_group)
 
         @bot.slash_command(name="resync", description="Reload config, views, and responses without restart.", guild_ids=[self.allowed_guild_id] if self.allowed_guild_id else None)
         async def resync(ctx: discord.ApplicationContext):
@@ -192,6 +196,133 @@ class CommandsCog(commands.Cog):
                 await ctx.followup.send("I couldn't close the ticket safely. Check the ticket channel for details.", ephemeral=True)
             except Exception:
                 pass
+
+    # --- /forum required_word ---
+    def _parse_channel_id(self, value: Optional[str]) -> Optional[int]:
+        if not value:
+            return None
+        match = re.search(r"\d{15,25}", str(value))
+        if not match:
+            return None
+        try:
+            return int(match.group(0))
+        except Exception:
+            return None
+
+    def _configured_forum_entries(self) -> list[dict]:
+        root = self.bot.config.data.setdefault("forum_first_message", {})
+        entries = root.get("entries")
+        if isinstance(entries, list):
+            return [entry for entry in entries if isinstance(entry, dict)]
+
+        forum_id = root.get("forum_channel_id")
+        templates = root.get("templates")
+        if forum_id and isinstance(templates, dict):
+            entry = {
+                "forum_channel_id": forum_id,
+                "templates": templates,
+            }
+            for key in ("required_word", "missing_required_word_dm", "required_word_dm_message", "required_word_delete_delay_seconds"):
+                if key in root:
+                    entry[key] = root[key]
+            root["entries"] = [entry]
+            root.pop("forum_channel_id", None)
+            root.pop("templates", None)
+            return [entry]
+
+        root["entries"] = []
+        return root["entries"]
+
+    def _resolve_forum_entry(self, ctx: discord.ApplicationContext, forum_channel_id: Optional[str]) -> tuple[Optional[dict], Optional[int], str]:
+        entries = self._configured_forum_entries()
+        parsed_id = self._parse_channel_id(forum_channel_id)
+
+        if parsed_id is None:
+            channel = getattr(ctx, "channel", None)
+            parent_id = getattr(channel, "parent_id", None)
+            channel_id = getattr(channel, "id", None)
+            for candidate_id in (parent_id, channel_id):
+                if candidate_id is None:
+                    continue
+                for entry in entries:
+                    try:
+                        if int(entry.get("forum_channel_id")) == int(candidate_id):
+                            return entry, int(candidate_id), ""
+                    except Exception:
+                        continue
+
+            if len(entries) == 1:
+                try:
+                    only_id = int(entries[0].get("forum_channel_id"))
+                except Exception:
+                    only_id = None
+                return entries[0], only_id, ""
+
+            configured = []
+            for entry in entries:
+                try:
+                    configured.append(f"<#{int(entry.get('forum_channel_id'))}>")
+                except Exception:
+                    continue
+            suffix = f" Configured forums: {', '.join(configured)}." if configured else ""
+            return None, None, "Please provide a forum channel ID or run this inside a configured forum thread." + suffix
+
+        for entry in entries:
+            try:
+                if int(entry.get("forum_channel_id")) == parsed_id:
+                    return entry, parsed_id, ""
+            except Exception:
+                continue
+        return None, parsed_id, f"That forum is not configured for first-message reminders: <#{parsed_id}>."
+
+    async def forum_required_word(
+        self,
+        ctx: discord.ApplicationContext,
+        word: Optional[str] = None,
+        forum_channel_id: Optional[str] = None,
+    ):
+        if not self._in_allowed_guild(ctx):
+            return await ctx.respond("Wrong server.", ephemeral=True)
+
+        member = ctx.guild.get_member(ctx.user.id)
+        if member is None or not member.guild_permissions.administrator:
+            return await ctx.respond("Nah, you can't use this", ephemeral=True)
+
+        entry, forum_id, error = self._resolve_forum_entry(ctx, forum_channel_id)
+        if entry is None:
+            return await ctx.respond(error or "Forum config not found.", ephemeral=True)
+
+        current = str(entry.get("required_word", "") or "").strip()
+        if word is None or not str(word).strip():
+            display = current or "disabled"
+            target = f"<#{forum_id}>" if forum_id else "the selected forum"
+            return await ctx.respond(f"Current required word for {target}: **{display}**", ephemeral=True)
+
+        new_word = str(word).strip()
+        if new_word.casefold() in {"off", "disable", "disabled", "none", "clear"}:
+            new_word = ""
+
+        entry["required_word"] = new_word
+        try:
+            self.bot.config.save()
+        except Exception as e:
+            await log_error(self.bot, f"Failed to save forum required word: {repr(e)}")
+            return await ctx.respond("I couldn't save the new required word...", ephemeral=True)
+
+        sticky = self.bot.get_cog("StickyCog")
+        if sticky:
+            fn = getattr(sticky, "on_config_reload", None)
+            if callable(fn):
+                try:
+                    fn()
+                except Exception as e:
+                    await log_error(self.bot, f"Failed to refresh StickyCog after required word update: {repr(e)}")
+
+        target = f"<#{forum_id}>" if forum_id else "the selected forum"
+        if new_word:
+            await ctx.respond(f"Updated required word for {target} to **{new_word}**.", ephemeral=True)
+        else:
+            await ctx.respond(f"Required word enforcement is now disabled for {target}.", ephemeral=True)
 
     # --- /resync ---
     async def _resync(self, ctx: discord.ApplicationContext):
