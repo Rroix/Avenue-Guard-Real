@@ -7,6 +7,7 @@ import discord
 from discord.ext import commands
 
 from utils.checks import ensure_allowed_guild_id, basic_color
+from utils.errors import log_error
 
 
 class StickyCog(commands.Cog):
@@ -17,6 +18,7 @@ class StickyCog(commands.Cog):
 
         # forum_channel_id -> templates dict (keys: "default" and tag_id strings)
         self._forum_rules: Dict[int, Dict[str, Dict[str, Any]]] = {}
+        self._forum_required_rules: Dict[int, Dict[str, Any]] = {}
 
         # Intentionally used for tag lookup (you asked to keep this pattern).
         # In multi-forum mode we set this per-thread before selecting templates.
@@ -24,6 +26,7 @@ class StickyCog(commands.Cog):
 
         # Thread IDs we've already handled this runtime
         self._forum_sent_threads: set[int] = set()
+        self._forum_required_checked_threads: set[int] = set()
 
         # Per-thread locks so only one send attempt runs at a time for a thread.
         self._forum_thread_locks: Dict[int, asyncio.Lock] = {}
@@ -36,6 +39,8 @@ class StickyCog(commands.Cog):
 
         # Forum first-message supports either a single config (legacy) or multiple entries.
         self._forum_rules = {}
+        self._forum_required_rules = {}
+        global_required_rule = self._required_rule_from_config(cfg.get("forum_first_message", default={}) or {})
         entries = cfg.get("forum_first_message", "entries", default=None)
         if isinstance(entries, list) and entries:
             for ent in entries:
@@ -49,11 +54,17 @@ class StickyCog(commands.Cog):
                 templates = ent.get("templates", {}) or {}
                 if isinstance(templates, dict):
                     self._forum_rules[ch_id] = templates
+                    required_rule = self._required_rule_from_config(ent, fallback=global_required_rule)
+                    if required_rule:
+                        self._forum_required_rules[ch_id] = required_rule
         else:
             ch_id = cfg.get_int("forum_first_message", "forum_channel_id")
             templates = cfg.get("forum_first_message", "templates", default={}) or {}
             if ch_id and isinstance(templates, dict):
                 self._forum_rules[int(ch_id)] = templates
+                required_rule = global_required_rule
+                if required_rule:
+                    self._forum_required_rules[int(ch_id)] = required_rule
 
         # If legacy single-forum config is used, keep _forum_templates pointing there.
         if len(self._forum_rules) == 1:
@@ -63,6 +74,29 @@ class StickyCog(commands.Cog):
 
     def on_config_reload(self) -> None:
         self.reload_from_config()
+
+    def _required_rule_from_config(self, source: Dict[str, Any], fallback: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+        fallback = fallback or {}
+        word = str(source.get("required_word", fallback.get("word", "")) or "").strip()
+        if not word:
+            return None
+
+        dm_message = str(
+            source.get("missing_required_word_dm")
+            or source.get("required_word_dm_message")
+            or fallback.get("dm_message")
+            or "Your thread was removed because it did not include the required word: {required_word}."
+        )
+        try:
+            delay = float(source.get("required_word_delete_delay_seconds", fallback.get("delete_delay_seconds", 10)) or 10)
+        except Exception:
+            delay = 10.0
+
+        return {
+            "word": word,
+            "dm_message": dm_message,
+            "delete_delay_seconds": max(0.0, delay),
+        }
 
     def _get_sticky_for_channel(self, channel_id: int) -> Optional[Dict[str, Any]]:
         for e in self._sticky_entries:
@@ -201,6 +235,96 @@ class StickyCog(commands.Cog):
         await thread.send(embed=embed)
         return True
 
+    def _schedule_required_word_check(self, thread: discord.Thread) -> None:
+        if thread.parent_id not in self._forum_required_rules:
+            return
+        if thread.id in self._forum_required_checked_threads:
+            return
+        self._forum_required_checked_threads.add(thread.id)
+        try:
+            asyncio.create_task(self._enforce_required_word(thread))
+        except Exception:
+            pass
+
+    async def _thread_contains_required_word(self, thread: discord.Thread, required_word: str) -> bool:
+        needle = required_word.casefold()
+        text_parts = [thread.name or ""]
+        try:
+            async for msg in thread.history(limit=10, oldest_first=True):
+                if msg.author and msg.author.bot:
+                    continue
+                if msg.content:
+                    text_parts.append(msg.content)
+                for embed in msg.embeds:
+                    if embed.title:
+                        text_parts.append(embed.title)
+                    if embed.description:
+                        text_parts.append(embed.description)
+        except Exception:
+            # If history cannot be read, avoid deleting a valid thread by mistake.
+            return True
+
+        return needle in "\n".join(text_parts).casefold()
+
+    async def _find_thread_owner(self, thread: discord.Thread) -> Optional[discord.abc.User]:
+        owner_id = getattr(thread, "owner_id", None)
+        if owner_id:
+            member = thread.guild.get_member(owner_id) if thread.guild else None
+            if member:
+                return member
+            try:
+                return await self.bot.fetch_user(owner_id)
+            except Exception:
+                return None
+
+        try:
+            async for msg in thread.history(limit=5, oldest_first=True):
+                if msg.author and not msg.author.bot:
+                    return msg.author
+        except Exception:
+            return None
+        return None
+
+    async def _enforce_required_word(self, thread: discord.Thread) -> None:
+        rule = self._forum_required_rules.get(thread.parent_id)
+        if not rule:
+            return
+
+        delay = float(rule.get("delete_delay_seconds", 10.0) or 10.0)
+        if delay:
+            try:
+                await asyncio.sleep(delay)
+            except asyncio.CancelledError:
+                return
+
+        required_word = str(rule.get("word", "") or "").strip()
+        if not required_word:
+            return
+
+        if await self._thread_contains_required_word(thread, required_word):
+            return
+
+        owner = await self._find_thread_owner(thread)
+        dm_template = str(rule.get("dm_message", "") or "")
+        if owner and dm_template:
+            try:
+                dm_text = dm_template.format(
+                    required_word=required_word,
+                    thread_name=thread.name,
+                    guild=thread.guild.name if thread.guild else "",
+                )
+            except Exception:
+                dm_text = dm_template
+            try:
+                await owner.send(dm_text)
+            except Exception:
+                pass
+
+        try:
+            await thread.delete(reason=f"Missing required word: {required_word}")
+        except Exception as e:
+            await log_error(self.bot, f"Could not delete thread {thread.id} missing required word {required_word!r}: {repr(e)}")
+
     async def _forum_first_message_flow(self, thread: discord.Thread, prefer_normal: bool) -> None:
         """One task at a time per thread.
 
@@ -214,12 +338,14 @@ class StickyCog(commands.Cog):
 
         # Fast skip if already handled in this runtime.
         if thread.id in self._forum_sent_threads:
+            self._schedule_required_word_check(thread)
             return
 
         lock = self._get_thread_lock(thread.id)
         async with lock:
             # Re-check inside lock.
             if thread.id in self._forum_sent_threads:
+                self._schedule_required_word_check(thread)
                 return
 
             # If fallback, give normal path time to send first.
@@ -232,6 +358,7 @@ class StickyCog(commands.Cog):
             # Manual check: if bot already posted in the thread, don't send again.
             if await self._thread_has_bot_message(thread):
                 self._forum_sent_threads.add(thread.id)
+                self._schedule_required_word_check(thread)
                 return
 
             # Try to send with retries (attachment posts can race thread readiness)
@@ -242,6 +369,7 @@ class StickyCog(commands.Cog):
                     sent = await self._send_forum_first_message(thread)
                     if sent:
                         self._forum_sent_threads.add(thread.id)
+                        self._schedule_required_word_check(thread)
                     return
                 except Exception:
                     try:
