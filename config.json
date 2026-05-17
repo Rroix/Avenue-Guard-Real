@@ -101,6 +101,10 @@
   "entries": [
     {
       "forum_channel_id": "1104487618026143754",
+      "_comment_required_word": "Threads in this forum must include required_word in the title/body, or the bot will DM the owner and delete the thread. Change required_word to any word you want.",
+      "required_word": "cubical",
+      "missing_required_word_dm": "Your collab thread \"{thread_name}\" in {guild} was removed because it did not include the required word: \"{required_word}\". Please repost it using [our format](https://discord.com/channels/717003826288394271/1452027365755453664/1452027365755453664).",
+      "required_word_delete_delay_seconds": 5,
       "templates": {
         "default": {
           "title": "Make sure your collab follows our format!",
