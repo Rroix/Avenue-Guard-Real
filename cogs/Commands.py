@@ -186,7 +186,12 @@ class CommandsCog(commands.Cog):
             return await ctx.respond("Help cog not loaded.", ephemeral=True)
 
         await ctx.respond("Closing ticket...", ephemeral=True)
-        await helpcog.close_ticket_channel(ctx.guild, ctx.channel_id)
+        ok = await helpcog.close_ticket_channel(ctx.guild, ctx.channel_id)
+        if not ok:
+            try:
+                await ctx.followup.send("I couldn't close the ticket safely. Check the ticket channel for details.", ephemeral=True)
+            except Exception:
+                pass
 
     # --- /resync ---
     async def _resync(self, ctx: discord.ApplicationContext):
@@ -198,7 +203,7 @@ class CommandsCog(commands.Cog):
         if member is None or not is_admin_or_owner(member, admin_roles):
             return await ctx.respond("You don't have permission to use this.", ephemeral=True)
 
-        await self.bot.config.reload()
+        self.bot.config.reload()
 
         # notify cogs
         for cog in self.bot.cogs.values():
