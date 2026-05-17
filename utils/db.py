@@ -87,7 +87,7 @@ class Database:
     guild_id INTEGER NOT NULL,
     week_start TEXT NOT NULL,
     user_id INTEGER NOT NULL,
-    action TEXT NOT NULL,
+    event TEXT NOT NULL,
     detail TEXT NOT NULL,
     ts INTEGER NOT NULL
 );""",
@@ -177,6 +177,7 @@ class Database:
         # Ensure columns exist on older DBs
         await self._ensure_column("tickets", "ticket_id", "INTEGER")
         await self._ensure_column("transcript_requests", "ticket_id", "INTEGER")
+        await self._normalize_weekly_dm_log()
 
         # Ensure sequence exists (set next_ticket_id based on max ticket_id)
         async with self._lock:
@@ -198,6 +199,46 @@ class Database:
                 self._conn.commit()
 
             await asyncio.to_thread(_init_seq)
+
+    async def _normalize_weekly_dm_log(self) -> None:
+        async with self._lock:
+            assert self._conn is not None
+
+            def _run():
+                assert self._conn is not None
+                info = list(self._conn.execute("PRAGMA table_info(weekly_dm_log)"))
+                cols = {r["name"] for r in info}
+                if "event" in cols and "action" not in cols:
+                    return
+
+                event_expr = "''"
+                if "event" in cols and "action" in cols:
+                    event_expr = "COALESCE(event, action, '')"
+                elif "event" in cols:
+                    event_expr = "COALESCE(event, '')"
+                elif "action" in cols:
+                    event_expr = "COALESCE(action, '')"
+
+                self._conn.execute("DROP TABLE IF EXISTS weekly_dm_log_new")
+                self._conn.execute(
+                    """CREATE TABLE weekly_dm_log_new(
+                        guild_id INTEGER NOT NULL,
+                        week_start TEXT NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        event TEXT NOT NULL,
+                        detail TEXT NOT NULL,
+                        ts INTEGER NOT NULL
+                    );"""
+                )
+                self._conn.execute(
+                    "INSERT INTO weekly_dm_log_new(guild_id, week_start, user_id, event, detail, ts) "
+                    f"SELECT guild_id, week_start, user_id, {event_expr}, COALESCE(detail, ''), ts FROM weekly_dm_log"
+                )
+                self._conn.execute("DROP TABLE weekly_dm_log")
+                self._conn.execute("ALTER TABLE weekly_dm_log_new RENAME TO weekly_dm_log")
+                self._conn.commit()
+
+            await asyncio.to_thread(_run)
 
     async def _ensure_column(self, table: str, column: str, coltype: str) -> None:
         await self.connect()
